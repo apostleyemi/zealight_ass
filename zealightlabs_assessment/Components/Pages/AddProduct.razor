@@ -1,0 +1,96 @@
+﻿@page "/create-product"
+
+@inject IProductRepository ProductRepository
+@inject NavigationManager Navigation
+
+@using zealightlabs_assessment.Components.Shared  <!-- Add this using directive -->
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h3>Create New Product</h3>
+                    @if (_showAlert)
+                    {
+                        <BootstrapAlert @ref="alertComponent" />
+                    }
+                </div>
+                <div class="card-body">
+                    <!-- Conditionally render the BootstrapAlert component -->
+                   
+
+                    <EditForm Model="@productRequestDto" OnValidSubmit="HandleProductSubmit">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="form-group">
+                            <label for="name">Name:</label>
+                            <InputText id="name" class="form-control" @bind-Value="productRequestDto.Name" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description">Description:</label>
+                            <InputText id="description" class="form-control" @bind-Value="productRequestDto.Description" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="price">Price:</label>
+                            <InputNumber id="price" class="form-control" @bind-Value="productRequestDto.Price" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="categoryId">CategoryId:</label>
+                            <select id="categoryId" class="form-control" @bind="productRequestDto.CategoryId">
+                                <option value="" disabled>All</option>
+                                @foreach (var category in categories)
+                                {
+                                    <option value="@category.Id">@category.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-block">Create Product</button>
+                    </EditForm>
+                </div>
+                <div class="card-footer text-center">
+                    <button class="btn btn-secondary" @onclick="NavigateBack">Back to Product List</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ProductRequestDto productRequestDto = new();
+    private List<CategoryDto> categories = new();
+    private BootstrapAlert alertComponent; // Reference to the alert component
+    private bool _showAlert = true; // Control visibility of the alert
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await ProductRepository.GetCategoriesDTOAsync(); // Get categories to bind to the dropdown
+    }
+
+    private async Task HandleProductSubmit()
+    {
+        try
+        {
+            // Ensure the productRequestDto is populated and valid
+             await ProductRepository.CreateAsync(productRequestDto);
+            _showAlert = true; // Make the alert visible
+            alertComponent.ShowAlert("Product created successfully!", "success"); // Show success message
+           // Navigation.NavigateTo("/products"); // Redirect back to the product list page after creation
+        }
+        catch (Exception ex)
+        {
+            _showAlert = true; // Show the alert in case of an error
+            alertComponent.ShowAlert($"Error: {ex.Message}", "danger"); // Show error message
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/products"); // Navigate back to the product list page
+    }
+}

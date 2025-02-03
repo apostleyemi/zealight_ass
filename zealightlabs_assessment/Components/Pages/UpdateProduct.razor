@@ -1,0 +1,127 @@
+﻿@page "/update-product/{id:int}"
+@inject IProductRepository ProductRepository
+@inject NavigationManager Navigation
+
+@using zealightlabs_assessment.Components.Shared
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h3>Update Product</h3>
+                    @if (_showAlert)
+                    {
+                        <BootstrapAlert @ref="alertComponent" />
+                    }
+                </div>
+                <div class="card-body">
+                    <EditForm Model="@productRequestDto" OnValidSubmit="HandleProductSubmit">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="form-group">
+                            <label for="name">Name:</label>
+                            <InputText id="name" class="form-control" @bind-Value="productRequestDto.Name" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description">Description:</label>
+                            <InputText id="description" class="form-control" @bind-Value="productRequestDto.Description" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="price">Price:</label>
+                            <InputNumber id="price" class="form-control" @bind-Value="productRequestDto.Price" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="categoryId">CategoryId:</label>
+                            <select id="categoryId" class="form-control" @bind="productRequestDto.CategoryId">
+                                <option value="" disabled>All</option>
+                                @foreach (var category in categories)
+                                {
+                                    <option value="@category.Id">@category.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-block">Update Product</button>
+                    </EditForm>
+                </div>
+                <div class="card-footer text-center">
+                    <button class="btn btn-secondary" @onclick="NavigateBack">Back to Product List</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; } // Capture the product ID from the route
+    private ProductRequestDto productRequestDto = new();
+    private List<CategoryDto> categories = new();
+    private BootstrapAlert alertComponent;
+    private bool _showAlert = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await ProductRepository.GetCategoriesDTOAsync(); // Get categories
+        await LoadProductAsync(); // Load product data for updating
+    }
+
+    private async Task LoadProductAsync()
+    {
+        try
+        {
+            var product = await ProductRepository.GetByIdAsync(Id); // Retrieve the product data by ID
+            if (product != null)
+            {
+                productRequestDto = new ProductRequestDto
+                    {
+                        Name = product.Name,
+                        Description = product.Description,
+                        Price = product.Price,
+                        CategoryId = product.CategoryId
+                    };
+            }
+            else
+            {
+                await ShowAlert("Product not found.", "danger");
+               // Navigation.NavigateTo("/products"); // Redirect to product list if not found
+            }
+        }
+        catch (Exception ex)
+        {
+            await ShowAlert($"Error: {ex.Message}", "danger");
+        }
+    }
+
+    private async Task HandleProductSubmit()
+    {
+        try
+        {
+            // Make the update request
+            await ProductRepository.UpdateAsync(Id, productRequestDto); // Update the product
+
+            _showAlert = true;
+            alertComponent.ShowAlert("Product updated successfully!", "success"); // Show success alert
+           // Navigation.NavigateTo("/products"); // Redirect to product list after updating
+        }
+        catch (Exception ex)
+        {
+            _showAlert = true;
+            alertComponent.ShowAlert($"Error: {ex.Message}", "danger"); // Show error message
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/products"); // Navigate back to the product list
+    }
+
+    private async Task ShowAlert(string message, string type)
+    {
+         alertComponent.ShowAlert(message, type); // Display alert
+    }
+}

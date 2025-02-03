@@ -1,0 +1,205 @@
+﻿@page "/product-list"
+@inject IProductRepository ProductRepository
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<div class="container-fluid align-self-center col-8 mt-5 pt-md-5">
+    <!-- Bootstrap Alert Component for Feedback -->
+    <BootstrapAlert @ref="alertComponent" />
+
+    <div class="filter-container">
+        <label>Category:</label>
+        <select @bind="selectedCategory" @bind:event="oninput" @onchange="ApplyFilter">
+            <option value="">All</option>
+            @foreach (var category in categories)
+            {
+                <option value="@category">@category</option>
+            }
+        </select>
+
+        <label>Price Range: @selectedPrice</label>
+        <input type="range" min="0" max="1000000" step="50"
+               @bind="selectedPrice"
+               @bind:event="oninput"
+               @onchange="ApplyFilter" />
+
+    </div>
+    <div class="container d-flex justify-content-end">
+        <button class="btn btn-primary" @onclick="NavigateToCreateProductPage">Add New Product</button>
+    </div>
+
+    @if (products == null)
+    {
+        <p>Loading products...</p>
+        <div class="skeleton-loader"></div>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Price(&#8358;)</th>
+                    <th>Category</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var product in products.Items)
+                {
+                    <tr>
+                        <td>@product.Name</td>
+                        <td>@product.Description</td>
+                        <td>@product.Price</td>
+                        <td>@product.CategoryName</td>
+                        <td>
+                            <button class="btn btn-warning" @onclick="() => NavigateToUpdateProductPage(product.Id)">Update</button>
+                            <button class="btn btn-danger" @onclick="() => ShowDeleteConfirmation(product.Id)">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            <button @onclick="() => ChangePage(products.PageNumber - 1)" disabled="@(!CanGoToPreviousPage)">Previous</button>
+
+            @for (int i = 1; i <= products.TotalPages; i++)
+            {
+                <button class="@((i == products.PageNumber) ? "active btn btn-primary" : "")" @onclick="() => ChangePage(i)">
+                    @i
+                </button>
+            }
+
+            <button @onclick="() => ChangePage(products.PageNumber + 1)" disabled="@(!CanGoToNextPage)">Next</button>
+        </div>
+    }
+</div>
+
+<!-- Confirmation Modal -->
+@if (showConfirmationDialog)
+{
+    <div class="modal fade show" tabindex="-1" style="display: block;" aria-hidden="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Deletion</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this product?</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button class="btn btn-danger" @onclick="DeleteProductConfirmed">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedList<ProductResponseDto> products;
+    private int pageNumber = 1;
+    private int pageSize = 10;
+    private List<string> categories = new();
+    private string selectedCategory = "";
+    private int selectedPrice = 1000; // Default max price
+    private BootstrapAlert alertComponent;
+    private bool showConfirmationDialog = false;
+    private int productIdToDelete = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategoriesAsync();
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        categories = await ProductRepository.GetCategoriesAsync();
+    }
+
+    private async Task ApplyFilter()
+    {
+        Console.WriteLine($"Filtering by Category: {selectedCategory}, Max Price: {selectedPrice}");
+        pageNumber = 1;
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        products = await ProductRepository.GetFilteredPaginatedAsync(pageNumber, pageSize, selectedCategory, selectedPrice);
+        StateHasChanged();
+    }
+
+    private void NavigateToCreateProductPage()
+    {
+        Navigation.NavigateTo("/create-product"); // Navigates to the Create Product page
+    }
+
+    private async Task ChangePage(int newPageNumber)
+    {
+        if (newPageNumber >= 1 && newPageNumber <= products.TotalPages && newPageNumber != pageNumber)
+        {
+            pageNumber = newPageNumber;
+            await LoadProductsAsync(); // Reload products for the new page
+            StateHasChanged(); // Ensure UI updates
+        }
+    }
+
+    private bool CanGoToPreviousPage => products?.PageNumber > 1;
+    private bool CanGoToNextPage => products?.PageNumber < products?.TotalPages;
+
+    // Method to show alert when products are filtered
+    private async Task ShowAlert(string message, string type)
+    {
+         alertComponent.ShowAlert(message, type); // Type can be 'success', 'danger', etc.
+    }
+
+    // Show confirmation dialog before deletion
+    private void ShowDeleteConfirmation(int productId)
+    {
+        productIdToDelete = productId;
+        showConfirmationDialog = true;
+    }
+
+    // Handle the confirmation to delete the product
+    private async Task DeleteProductConfirmed()
+    {
+        try
+        {
+            var result = await ProductRepository.DeleteAsync(productIdToDelete);
+
+            if (result)
+            {
+                await ShowAlert("Product deleted successfully!", "success");
+                await LoadProductsAsync(); // Reload the product list after deletion
+            }
+            else
+            {
+                await ShowAlert("Failed to delete product. Please try again.", "danger");
+            }
+
+            // Close the confirmation dialog
+            showConfirmationDialog = false;
+        }
+        catch (Exception ex)
+        {
+            await ShowAlert($"Error: {ex.Message}", "danger");
+            showConfirmationDialog = false;
+        }
+    }
+
+    // Cancel deletion
+    private void CancelDelete()
+    {
+        showConfirmationDialog = false;
+    }
+
+    private void NavigateToUpdateProductPage(int productId)
+    {
+        Navigation.NavigateTo($"/update-product/{productId}"); // Navigates to the Update Product page for the selected product
+    }
+}

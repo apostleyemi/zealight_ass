@@ -1,0 +1,49 @@
+﻿@using Microsoft.AspNetCore.Components
+
+@if (_isVisible && !string.IsNullOrEmpty(Message))
+{
+    <div class="alert @TypeClass @DismissClass" role="alert">
+        @Message
+        @if (Dismissible)
+        {
+            <button type="button" class="btn-close" aria-label="Close" @onclick="CloseAlert"></button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public string Type { get; set; } = "info"; // Default type to info
+    [Parameter] public bool Dismissible { get; set; } = true; // Default to true
+
+    private bool _isVisible = true;
+
+    // Property to determine the CSS class for the alert based on the Type
+    private string TypeClass => Type switch
+    {
+        "success" => "alert-success",
+        "danger" => "alert-danger",
+        "warning" => "alert-warning",
+        "info" => "alert-info",
+        _ => "alert-secondary"
+    };
+
+    // Property to manage the dismiss class if the alert is dismissible
+    private string DismissClass => Dismissible ? "alert-dismissible fade show" : "";
+
+    // Method to show the alert
+    public void ShowAlert(string message, string type = "info")
+    {
+        Message = message;
+        Type = type;
+        _isVisible = true;
+        StateHasChanged();
+    }
+
+    // Method to close the alert
+    private void CloseAlert()
+    {
+        _isVisible = false;
+        StateHasChanged();
+    }
+}
