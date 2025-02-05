@@ -150,5 +150,65 @@ namespace zealightlabs_assessment.Repository.Implementation
             ).ToListAsync();
         }
 
+        public async Task<PaginatedList<ProductResponseDto>> GetFilteredPaginatedAsync(
+            int pageNumber, int pageSize, string category, int maxPrice, string searchQuery)
+        {
+            var query = dbContext.Products
+                .Include(p => p.Category) // Ensure Category is loaded
+                .AsQueryable();
+
+            if (!string.IsNullOrEmpty(category))
+            {
+                query = query.Where(p => p.Category != null && p.Category.Name == category);
+            }
+
+            if (maxPrice > 0)
+            {
+                query = query.Where(p => p.Price <= maxPrice);
+            }
+
+            if (!string.IsNullOrEmpty(searchQuery))
+            {
+                query = query.Where(p => p.Name.Contains(searchQuery) || p.Description.Contains(searchQuery));
+            }
+
+            var totalCount = await query.CountAsync();
+            var items = await query.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync();
+
+            if (!items.Any()) // Ensure there's no crash when empty
+            {
+                return new PaginatedList<ProductResponseDto>(new List<ProductResponseDto>(), totalCount, pageNumber, pageSize);
+            }
+
+                return new PaginatedList<ProductResponseDto>(
+                items.Select(p => new ProductResponseDto
+                {
+                    Id = p.Id,
+                    Name = p.Name ?? "No Name", // Handle null names
+                    Description = p.Description ?? "", // Handle null descriptions
+                    Price = p.Price,
+                    CategoryName = p.Category != null ? p.Category.Name : "Uncategorized" // Handle null categories
+                }).ToList(),
+                totalCount,
+                pageNumber,
+                pageSize);
+        }
+        public async Task<List<string>> GetSearchSuggestionsAsync(string searchQuery)
+        {
+            if (string.IsNullOrEmpty(searchQuery))
+                return new List<string>();
+
+            return await dbContext.Products
+                .Where(p => p.Name.Contains(searchQuery))
+                .Select(p => p.Name)
+                .Distinct()
+                .Take(10) // Limit suggestions to 10 items
+                .ToListAsync();
+        }
+
     }
+
+
+
+
 }
